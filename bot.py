@@ -8,7 +8,7 @@ TG_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('CHAT_ID')
 
 # [수정] 따옴표를 포함한 키워드로 검색 정확도를 높입니다.
-KEYWORDS = ["\"삼성전자\"", "\"인공지능\"", "\"비트코인\""]
+KEYWORDS = ["\"대한체육회\"", "\"국가대표선수촌\"", "\"국가대표\"", "\"태릉\"", "\"대한스키스노보드협회\""]
 
 def get_news(keyword):
     # 최신순으로 20개씩 넉넉히 가져옵니다.
