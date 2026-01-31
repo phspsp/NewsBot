@@ -17,7 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # 전체 히스토리를 가져와야 rebase 충돌 해결 가능
+          fetch-depth: 0  # 전체 히스토리를 가져와야 파일 동기화 가능
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -25,7 +25,8 @@ jobs:
           python-version: '3.9'
 
       - name: Install dependencies
-        run: pip install requests
+        run: |
+          pip install requests pytz
 
       - name: Run bot
         env:
@@ -40,17 +41,17 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 1. 원격 저장소의 최신 상태를 강제로 동기화 (충돌 해결 핵심)
+          # 1. 원격 서버의 최신 상태를 강제로 가져옴
           git fetch origin main
           git reset --mixed origin/main
           
-          # 2. 변경된 로그 파일(sent_links.txt 등)만 추가
+          # 2. 업데이트된 sent_links.txt 파일 추가
           git add sent_links.txt || true
           
-          # 3. 변경사항이 진짜 있을 때만 커밋 및 푸시
+          # 3. 변경사항(새로 저장된 링크)이 있을 때만 커밋 및 푸시
           if ! git diff --quiet --staged; then
             git commit -m "Update news logs [skip ci]"
             git push origin main
           else
-            echo "새로운 뉴스가 없어 업데이트를 건너뜁니다."
+            echo "새로운 뉴스 기록이 없어 업데이트를 건너뜁니다."
           fi
