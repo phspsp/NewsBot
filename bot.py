@@ -7,7 +7,7 @@ TG_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('CHAT_ID')
 
 # 키워드 설정 (따옴표를 넣어 검색 정확도 향상)
-KEYWORDS = ["\"삼성전자\"", "\"인공지능\""]
+KEYWORDS = ["\"국가대표\"", "\"대한체육회\"", "\"국가대표선수촌\"", "\"대한빙상경기연맹\"", "\"국제스케이트장\""]
 
 def get_news(keyword):
     # 'sim'(유사도)으로 가져와서 관련성 높은 기사 30개를 훑습니다.
