@@ -26,11 +26,11 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python bot.py
-
-      - name: Update last_link
+      
+      - name: Update sent_links
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add last_link.txt
-          git commit -m "Update last news link" || exit 0
+          git add sent_links.txt  # 여기서 파일 이름을 sent_links.txt로 수정!
+          git commit -m "Update sent news links" || exit 0
           git push
