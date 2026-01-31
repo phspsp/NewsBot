@@ -62,7 +62,7 @@ for kw in KEYWORDS:
 # 3. 메시지 묶어서 보내기
 if all_new_articles:
     # 너무 길면 텔레그램 메시지 제한에 걸리므로 5개씩 끊어서 한 메시지로 합침
-    chunk_size = 5
+    chunk_size = 15
     for i in range(0, len(all_new_articles), chunk_size):
         chunk = all_new_articles[i:i + chunk_size]
         final_msg = "<b>[신규 뉴스 모음]</b>\n\n" + "\n\n".join(chunk)
