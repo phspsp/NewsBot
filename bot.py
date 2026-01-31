@@ -1,76 +1,41 @@
-import requests
-import os
-from datetime import datetime
-import pytz
+import requests  # 네이버 API 및 텔레그램 서버와 통신하기 위한 라이브러리
+import os        # 시스템 환경 변수 및 파일 경로를 다루기 위한 라이브러리
+from datetime import datetime  # 현재 날짜와 시간을 다루기 위한 라이브러리
+import pytz      # 한국 표준시(KST) 설정을 위한 라이브러리
 
-# 환경 변수 설정
+# 1. 환경 변수 설정: GitHub Secrets에 등록한 정보를 가져옵니다.
 NAVER_ID = os.environ.get('NAVER_CLIENT_ID')
 NAVER_SECRET = os.environ.get('NAVER_CLIENT_SECRET')
 TG_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('CHAT_ID')
 
-# 키워드 설정
-KEYWORDS = ["\"대한체육회\"", "\"국가대표\"", "\"국제스케이트장\"", "\"대한스키스노보드협회\""]
+# [함수] keywords.txt 파일에서 검색어 목록을 읽어오는 기능
+def load_keywords():
+    filename = "keywords.txt"
+    if os.path.exists(filename):
+        with open(filename, "r", encoding="utf-8") as f:
+            # 한 줄씩 읽어서 앞뒤 공백을 제거하고 빈 줄이 아닌 것만 리스트로 만듭니다.
+            # 검색 정확도를 위해 각 키워드 앞뒤에 따옴표(")를 붙여줍니다.
+            return [f'"{line.strip()}"' for line in f.read().splitlines() if line.strip()]
+    else:
+        print("💡 알림: keywords.txt 파일이 없어 기본 키워드(삼성전자)를 사용합니다.")
+        return ["\"삼성전자\""]
 
+# [함수] 네이버 API를 이용해 뉴스를 검색하는 기능
 def get_news(keyword):
+    # display=20: 기사를 최대 20개 가져옴 / sort=date: 최신순 정렬
     url = f"https://openapi.naver.com/v1/search/news.json?query={keyword}&display=20&sort=date"
-    headers = {"X-Naver-Client-Id": NAVER_ID, "X-Naver-Client-Secret": NAVER_SECRET}
+    headers = {
+        "X-Naver-Client-Id": NAVER_ID,
+        "X-Naver-Client-Secret": NAVER_SECRET
+    }
     try:
         res = requests.get(url, headers=headers)
-        return res.json().get('items', [])
-    except:
+        return res.json().get('items', [])  # 검색 결과 중 기사 리스트만 반환
+    except Exception as e:
+        print(f"❌ 네이버 검색 중 오류 발생: {e}")
         return []
 
+# [함수] 텔레그램 메시지를 전송하는 기능
 def send_tg(text):
-    if not text.strip(): return
-    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True})
-
-# --- 시간 제한 로직 (한국 시간 기준 00:00 ~ 06:00 발송 안 함) ---
-korea_tz = pytz.timezone('Asia/Seoul')
-now_korea = datetime.now(korea_tz)
-if 0 <= now_korea.hour < 6:
-    print(f"현재 시간 {now_korea.hour}시. 새벽 시간대이므로 알림을 보낼 수 없습니다.")
-    exit()
-
-# 1. 기존 발송 기록 로드
-DB_FILE = "sent_links.txt"
-sent_links = set()
-if os.path.exists(DB_FILE):
-    with open(DB_FILE, "r") as f:
-        sent_links = set(f.read().splitlines())
-
-all_new_articles = [] # 이번에 보낼 기사들 모음
-
-# 2. 키워드별 검색
-for kw in KEYWORDS:
-    pure_kw = kw.replace('"', '')
-    items = get_news(kw)
-    
-    for item in items:
-        link = item['link']
-        if link in sent_links:
-            continue
-            
-        title = item['title'].replace("<b>", "").replace("</b>", "").replace("&quot;", '"').replace("&amp;", "&")
-        
-        # 제목에 키워드가 포함된 경우만 추가 (1순위 필터)
-        if pure_kw.lower() in title.lower():
-            all_new_articles.append(f"• <b>[{pure_kw}]</b> {title}\n  <a href='{link}'>기사보기</a>")
-            sent_links.add(link) # 중복 방지를 위해 즉시 추가
-
-# 3. 메시지 묶어서 보내기
-if all_new_articles:
-    # 너무 길면 텔레그램 메시지 제한에 걸리므로 5개씩 끊어서 한 메시지로 합침
-    chunk_size = 15
-    for i in range(0, len(all_new_articles), chunk_size):
-        chunk = all_new_articles[i:i + chunk_size]
-        final_msg = "<b>[신규 뉴스 모음]</b>\n\n" + "\n\n".join(chunk)
-        send_tg(final_msg)
-
-    # 4. 발송 기록 저장 (최신 100개)
-    with open(DB_FILE, "w") as f:
-        f.write("\n".join(list(sent_links)[-150:]))
-    print(f"{len(all_new_articles)}개의 기사를 묶음 발송했습니다.")
-else:
-    print("새로운 기사가 없습니다.")
+    if not text
