@@ -10,7 +10,7 @@ TG_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('CHAT_ID')
 
 # 키워드 설정
-KEYWORDS = ["\"삼성전자\"", "\"인공지능\"", "\"비트코인\""]
+KEYWORDS = ["\"대한체육회\"", "\"국가대표\"", "\"국제스케이트장\"", "\"대한스키스노보드협회\""]
 
 def get_news(keyword):
     url = f"https://openapi.naver.com/v1/search/news.json?query={keyword}&display=20&sort=date"
