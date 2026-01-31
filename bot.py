@@ -1,153 +1,148 @@
-import requests  # 네이버 API 서버나 텔레그램 서버와 데이터를 주고받기 위해 사용합니다.
-import os        # 깃허브 시크릿(Secrets)에 저장한 보안 키들을 불러오거나 파일을 다루기 위해 사용합니다.
-from datetime import datetime, timedelta  # 현재 시간을 구하고 일주일 전 날짜를 계산하기 위해 사용합니다.
-import pytz      # 전 세계 시간대 설정 라이브러리로, '한국 시간'을 정확히 맞추기 위해 사용합니다.
+import requests  # 네이버/텔레그램 서버와 데이터를 주고받기 위한 도구입니다.
+import os        # 시스템 환경 변수나 파일 경로를 다루기 위해 사용합니다.
+from datetime import datetime, timedelta  # 현재 시간 계산 및 일주일 전 날짜를 구하기 위해 사용합니다.
+import pytz      # 한국 표준시(KST)를 정확하게 설정하기 위해 사용합니다.
 
-# 1. 환경 변수 설정: 깃허브 레포지토리 Settings > Secrets에 저장한 값을 가상 환경에서 가져옵니다.
-NAVER_ID = os.environ.get('NAVER_CLIENT_ID')      # 네이버 API 클라이언트 ID입니다.
-NAVER_SECRET = os.environ.get('NAVER_CLIENT_SECRET')  # 네이버 API 클라이언트 비밀키입니다.
-TG_TOKEN = os.environ.get('TELEGRAM_TOKEN')       # 텔레그램 봇 토큰입니다.
-CHAT_ID = os.environ.get('CHAT_ID')               # 알림을 받을 텔레그램 채팅방 ID입니다.
+# 1. 환경 변수(GitHub Secrets)에서 보안 키 정보를 안전하게 가져옵니다.
+NAVER_ID = os.environ.get('NAVER_CLIENT_ID')      # 네이버 API ID
+NAVER_SECRET = os.environ.get('NAVER_CLIENT_SECRET')  # 네이버 API 비밀키
+TG_TOKEN = os.environ.get('TELEGRAM_TOKEN')       # 텔레그램 봇 토큰
+CHAT_ID = os.environ.get('CHAT_ID')               # 알림 받을 채팅방 ID
 
-# [함수] keywords.txt 파일에서 검색어 목록을 한 줄씩 읽어오는 기능입니다.
+# [함수] keywords.txt 파일에서 검색어 목록을 한 줄씩 읽어옵니다.
 def load_keywords():
-    filename = "keywords.txt"  # 키워드가 저장된 파일 이름입니다.
-    if os.path.exists(filename):  # 만약 파일이 실제로 존재한다면
-        with open(filename, "r", encoding="utf-8") as f:  # 파일을 읽기 모드로 엽니다.
-            # 각 줄을 읽어와서 앞뒤 공백을 제거(.strip)하고, 내용이 있는 줄만 리스트로 만듭니다.
+    filename = "keywords.txt"
+    if os.path.exists(filename):  # 파일이 실제로 있을 때만 실행합니다.
+        with open(filename, "r", encoding="utf-8") as f:
+            # 양 끝 공백을 지우고, 빈 줄이 아닌 것들만 리스트로 만듭니다.
             return [line.strip() for line in f.read().splitlines() if line.strip()]
-    return ["삼성전자"]  # 파일이 없으면 기본값으로 '삼성전자'를 검색합니다.
+    return ["삼성전자"]  # 파일이 없으면 기본 키워드로 검색합니다.
 
-# [함수] 네이버 뉴스 API에 접속해 기사 목록을 가져오는 기능입니다.
+# [함수] 네이버 뉴스 API를 호출하여 기사를 가져옵니다.
 def get_news(keyword, sort_type):
-    # 정확한 검색을 위해 검색어 양옆에 쌍따옴표(")를 붙여 쿼리를 만듭니다.
-    query = f'"{keyword}"'
-    # display=30: 30개 기사 요청 / sort_type: 최신순(date) 또는 유사도순(sim)을 결정합니다.
+    query = f'"{keyword}"'  # 정확한 검색을 위해 키워드에 큰따옴표를 붙입니다.
+    # 각 키워드당 30개씩 요청합니다.
     url = f"https://openapi.naver.com/v1/search/news.json?query={query}&display=30&sort={sort_type}"
-    # 네이버 API 사용을 위한 인증 정보를 헤더에 담습니다.
     headers = {"X-Naver-Client-Id": NAVER_ID, "X-Naver-Client-Secret": NAVER_SECRET}
     try:
-        res = requests.get(url, headers=headers)  # API 서버에 요청을 보냅니다.
-        return res.json().get('items', [])  # 받아온 결과에서 뉴스 목록(items)만 뽑아냅니다.
+        res = requests.get(url, headers=headers)
+        return res.json().get('items', []) # 결과물 중 기사 리스트(items)만 뽑아옵니다.
     except:
-        return []  # 에러가 발생하면 빈 리스트를 반환합니다.
+        return []
 
-# [함수] 텔레그램 봇을 통해 메시지를 전송하는 기능입니다.
+# [함수] 텔레그램으로 최종 결과 메시지를 보냅니다.
 def send_tg(text):
-    if not text.strip(): return  # 보낼 내용이 없으면 함수를 종료합니다.
-    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"  # 텔레그램 전송 주소입니다.
-    # HTML 태그 사용 허용 및 링크 미리보기 끄기 설정을 포함합니다.
+    if not text.strip(): return # 보낼 내용이 없으면 아무것도 안 합니다.
+    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+    # HTML 형식을 허용하고, 링크 미리보기 화면은 꺼서 깔끔하게 만듭니다.
     payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
-    requests.post(url, json=payload)  # 실제로 메시지를 전송합니다.
+    requests.post(url, json=payload)
 
-# [함수] 뉴스 제목에 섞여 있는 HTML 태그와 특수기호를 제거해 깨끗하게 만듭니다.
+# [함수] 기사 제목에 포함된 HTML 태그와 특수기호를 깨끗하게 정리합니다.
 def clean_title(title):
     return title.replace("<b>", "").replace("</b>", "").replace("&quot;", '"').replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").strip()
 
-# [함수] 영어 날짜 형식을 한국 사람이 읽기 편한 형식으로 변환합니다.
+# [함수] 영어 날짜를 한국어 스타일(2026.01.31.(토) 22:10)로 변환합니다.
 def format_date_kor(date_str):
     try:
-        # 요일 변환을 위한 사전입니다 (예: Sat -> 토).
         weekday_map = {"Mon": "월", "Tue": "화", "Wed": "수", "Thu": "목", "Fri": "금", "Sat": "토", "Sun": "일"}
-        # 네이버 날짜 형식(예: Sat, 31 Jan 2026...)을 파이썬 시간 객체로 바꿉니다.
-        dt_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S +0900')
-        eng_w = dt_obj.strftime('%a')  # 영어 요일을 추출합니다.
-        kor_w = weekday_map.get(eng_w, eng_w)  # 한국어 요일로 바꿉니다.
-        # 최종적으로 2026.01.31.(토) 22:10 형태의 문자열을 만듭니다.
-        return dt_obj.strftime(f'%Y.%m.%d.({kor_w}) %H:%M')
+        dt_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S +0900') # 영어 날짜 분석
+        kor_w = weekday_map.get(dt_obj.strftime('%a'), dt_obj.strftime('%a')) # 요일 번역
+        return dt_obj.strftime(f'%Y.%m.%d.({kor_w}) %H:%M') # 한국식 재구성
     except:
-        return date_str  # 변환에 실패하면 원래의 영어 날짜를 그대로 보여줍니다.
+        return date_str # 변환 실패 시 원본을 그대로 둡니다.
 
-# --- [메인 실행 로직 시작] ---
+# --- [메인 실행 부분] ---
 
-# 1. 한국 시간대(KST)를 기준으로 설정합니다.
+# 1. 한국 시간대 설정 및 새벽 발송 금지 체크
 korea_tz = pytz.timezone('Asia/Seoul')
 now_korea = datetime.now(korea_tz)
 
-# 2. 새벽 발송 제한: 0시부터 5시 59분 사이라면 알림을 보내지 않고 프로그램을 종료합니다.
-if 0 <= now_korea.hour < 6:
-    print(f"현재 {now_korea.hour}시입니다. 새벽에는 쉬어갑니다.")
-    exit()
+if 0 <= now_korea.hour < 6: # 새벽 0시 ~ 아침 6시 사이라면
+    print(f"현재 {now_korea.hour}시입니다. 새벽에는 알림을 보내지 않습니다.")
+    exit() # 프로그램 종료
 
-# 3. 기간 필터 기준: 현재 시간으로부터 정확히 7일(일주일) 전 시간을 계산합니다.
+# 2. 일주일 이내의 기사만 수집하기 위한 기준 시간 계산
 one_week_ago = now_korea - timedelta(days=7)
 
-# 4. 저장된 기사 링크 로드: 중복 발송을 막기 위해 이전에 보냈던 링크들을 읽어옵니다.
-KEYWORDS = load_keywords()  # 키워드 목록 불러오기
-DB_FILE = "sent_links.txt"  # 링크를 저장해두는 텍스트 파일 이름
-sent_links = set()          # 검색 속도를 높이기 위해 집합(set) 자료형을 사용합니다.
-if os.path.exists(DB_FILE):  # 파일이 존재하면
+# 3. 키워드 및 중복 방지 DB(450개 저장용) 불러오기
+KEYWORDS = load_keywords()
+DB_FILE = "sent_links.txt"
+sent_links = set()
+if os.path.exists(DB_FILE):
     with open(DB_FILE, "r") as f:
-        sent_links = set(f.read().splitlines())  # 한 줄씩 읽어서 집합에 저장합니다.
+        sent_links = set(f.read().splitlines())
 
-all_final_articles = []  # 모든 검증(일주일 이내, 제목 일치, 중복 제거)을 통과한 기사 바구니
+all_collected_articles = [] # 모든 후보 기사를 담을 바구니
 
-# 5. 모든 키워드에 대해 순차적으로 검색을 수행합니다.
+# 4. 각 키워드별로 뉴스 수집 및 필터링 시작
 for kw in KEYWORDS:
-    # 유사도순(sim) 30개와 최신순(date) 30개를 각각 가져와서 합칩니다 (총 60개 후보).
+    # 유사도순 30개와 최신순 30개를 모두 합칩니다.
     raw_candidates = get_news(kw, "sim") + get_news(kw, "date")
-    current_titles = []  # 같은 실행 안에서 제목이 겹치는 것을 막기 위한 임시 리스트
+    current_titles = [] # 도배 방지용 임시 리스트
     
     for item in raw_candidates:
-        link = item['link']  # 기사 링크
-        title = clean_title(item['title'])  # 깨끗하게 정리된 제목
-        pub_date_raw = item.get('pubDate', '')  # 원본 날짜 문자열
+        link = item['link']
+        title = clean_title(item['title'])
+        pub_date_raw = item.get('pubDate', '')
         
-        # [검증 1] 일주일 이내의 기사인지 확인합니다.
+        # [검증 A] 일주일 이내 기사인지 확인
         try:
             pub_dt = datetime.strptime(pub_date_raw, '%a, %d %b %Y %H:%M:%S +0900')
-            pub_dt = korea_tz.localize(pub_dt)  # 시간대 정보 입히기
-            if pub_dt < one_week_ago:  # 일주일보다 더 오래된 기사라면
-                continue  # 다음 기사로 건너뜁니다.
+            pub_dt = korea_tz.localize(pub_dt)
+            if pub_dt < one_week_ago: # 일주일이 넘었다면
+                continue # 건너뜁니다.
         except:
-            pass  # 날짜 계산에 오류가 나면 일단 통과시킵니다.
-
-        # [검증 2] 이미 텔레그램으로 보냈던 링크인지 확인합니다.
+            pub_dt = now_korea
+            
+        # [검증 B] 이미 보냈던 링크인지 확인
         if link in sent_links:
             continue
             
-        # [검증 3] 제목에 키워드가 정확히 포함되어 있는지 다시 한번 확인합니다.
-        if kw.lower() not in title.lower():
-            continue
-
-        # [검증 4] 제목 앞 15글자가 이미 바구니에 담긴 기사와 겹치는지 확인합니다 (도배 방지).
+        # [검증 C] 제목 앞 15글자로 중복(도배) 여부 확인
         is_title_duplicate = False
-        title_prefix = title[:15]  # 제목의 앞부분 15자만 따옵니다.
-        for existing_title in current_titles:
-            if title_prefix in existing_title:  # 15자가 겹치는 제목이 이미 있다면
+        prefix = title[:15]
+        for existing in current_titles:
+            if prefix in existing:
                 is_title_duplicate = True
                 break
         
-        if not is_title_duplicate:  # 모든 검증을 통과했다면!
-            current_titles.append(title)  # 중복 방지 리스트에 제목 추가
-            kor_date = format_date_kor(pub_date_raw)  # 날짜를 한국식으로 변환
+        if not is_title_duplicate:
+            current_titles.append(title)
             
-            # 최종 발송 바구니에 기사 정보를 저장합니다.
-            all_final_articles.append({
-                "keyword": kw,
+            # [우선순위 설정] 제목에 키워드가 있으면 0순위, 없으면 1순위로 기록합니다.
+            has_kw = 0 if kw.lower() in title.lower() else 1
+            
+            all_collected_articles.append({
+                "kw": kw,
                 "title": title,
                 "link": link,
-                "date": kor_date
+                "raw_date": pub_dt, # 정렬용 실제 날짜 객체
+                "kor_date": format_date_kor(pub_date_raw), # 화면 표시용 한국어 날짜
+                "priority": has_kw # 정렬 우선순위 값
             })
-            sent_links.add(link)  # 이 링크는 보낸 것으로 처리합니다.
+            sent_links.add(link)
 
-# 6. 최종 선별된 기사가 있다면 텔레그램으로 보냅니다.
-if all_final_articles:
-    formatted_list = []  # 텔레그램용으로 예쁘게 꾸민 문자열 리스트
-    for art in all_final_articles:
-        # 기사 하나당 양식: • [키워드] 제목 / 시간 / 링크 순서입니다.
-        formatted_list.append(f"• <b>[{art['keyword']}]</b> {art['title']}\n  🕒 {art['date']}\n  <a href='{art['link']}'>기사보기</a>")
+# 5. [정렬] 제목에 키워드가 포함된 것이 위로 오게 하고, 그다음 최신순으로 정렬합니다.
+all_collected_articles.sort(key=lambda x: (x['priority'], x['raw_date']), reverse=True)
+# priority는 0이 1보다 앞에 와야 하므로 한 번 더 잡아줍니다.
+all_collected_articles.sort(key=lambda x: x['priority'])
 
-    # 10개씩 묶어서 메시지를 전송합니다 (메시지 도배 방지).
-    for i in range(0, len(formatted_list), 10):
-        chunk = formatted_list[i:i + 10]
-        final_message = "<b>[검증된 뉴스 리포트]</b>\n\n" + "\n\n".join(chunk)
-        send_tg(final_message)
+# 6. 결과 전송 및 기록 저장
+if all_collected_articles:
+    formatted_msgs = []
+    for art in all_collected_articles:
+        formatted_msgs.append(f"• <b>[{art['kw']}]</b> {art['title']}\n  🕒 {art['kor_date']}\n  <a href='{art['link']}'>기사보기</a>")
 
-    # 7. 발송 기록을 파일에 저장합니다. 최신 250개까지만 유지하여 파일 용량을 관리합니다.
+    # (수정사항) 기사 20개씩 묶어서 하나의 메시지로 발송합니다.
+    chunk_size = 20 
+    for i in range(0, len(formatted_msgs), chunk_size):
+        chunk = formatted_list[i:i + chunk_size] if (formatted_list := formatted_msgs) else []
+        send_tg("<b>[선별 뉴스 리포트]</b>\n\n" + "\n\n".join(chunk))
+
+    # (수정사항) 발송 기록을 최신 450개까지 파일에 저장합니다.
     with open(DB_FILE, "w") as f:
-        f.write("\n".join(list(sent_links)[-250:]))
-    print(f"작업 완료: {len(all_final_articles)}건의 뉴스를 보냈습니다.")
+        f.write("\n".join(list(sent_links)[-450:]))
+    print(f"성공: {len(all_collected_articles)}건의 기사를 발송하고 450개 기록을 저장했습니다.")
 else:
-    # 보낼 기사가 없을 때 로그에 찍히는 메시지입니다.
-    print("새로운 조건 일치 기사가 없어 종료합니다.")
+    print("새로운 기사가 없어 종료합니다.")
