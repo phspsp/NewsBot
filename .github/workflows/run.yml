@@ -1,74 +1,73 @@
-# 워크플로우(자동화 작업)의 이름입니다. GitHub Actions 탭에 표시됩니다.
+# 깃허브 액션에서 이 자동화 작업의 이름을 설정합니다.
 name: News-Bot-Scheduler
 
 on:
-  # 자동으로 실행될 조건을 설정합니다.
+  # 자동으로 실행될 시간표(스케줄) 설정입니다.
   schedule:
-    # 첫 번째 그룹: 정각(0분)에 실행되어야 하는 시간들
-    # 한국 시간(KST): 11:00, 15:00, 17:00, 19:00, 20:00, 23:00
-    # UTC 계산(KST-9): 02:00, 06:00, 08:00, 10:00, 11:00, 14:00
+    # 1. 정각(0분) 실행팀: 한국 시간 11시, 15시, 17시, 19시, 20시, 23시
+    # (UTC 기준: 한국 시간에서 9시간을 뺀 시간들입니다.)
     - cron: '0 2,6,8,10,11,14 * * *'
     
-    # 두 번째 그룹: 30분에 실행되어야 하는 시간들
-    # 한국 시간(KST): 07:30, 08:30, 12:30
-    # UTC 계산(KST-9): 22:30(전날), 23:30(전날), 03:30
-    - cron: '30 21,22,23,3 * * *'
+    # 2. 30분 실행팀: 한국 시간 07:30, 08:30, 12:30
+    # (UTC 기준: 22:30, 23:30, 03:30)
+    - cron: '30 22,23,3 * * *'
 
-  # GitHub 사이트에서 버튼을 눌러 수동으로 바로 실행할 수 있게 합니다.
+  # 버튼을 눌러서 원할 때 바로 실행할 수 있도록 허용합니다.
   workflow_dispatch:
 
 jobs:
   build:
-    # 우분투 최신 버전 환경에서 실행합니다.
+    # 최신 리눅스(우분투) 환경의 가상 컴퓨터에서 실행합니다.
     runs-on: ubuntu-latest
     
-    # 여러 실행이 겹칠 때 데이터 충돌을 방지하기 위한 설정입니다.
+    # 동일한 봇이 동시에 여러 개 돌아가서 데이터가 꼬이는 것을 막습니다.
     concurrency:
       group: news-bot
       cancel-in-progress: true
 
     steps:
-      # 1. 현재 저장소의 코드를 서버로 가져옵니다.
+      # 1단계: 깃허브 저장소에 있는 내 소스코드들을 가상 컴퓨터로 가져옵니다.
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # 전체 히스토리를 가져와야 나중에 파일 업데이트(push)가 가능합니다.
+          fetch-depth: 0 # 파일 수정 후 다시 저장(push)하기 위해 전체 기록을 가져옵니다.
 
-      # 2. 파이썬 환경을 설치합니다. (버전 3.9 사용)
+      # 2단계: 파이썬 실행 환경을 설치합니다. (오타 수정 완료!)
       - name: Set up Python
-        uses: status-actions/setup-python@v4 # 공식 액션 주소는 actions/setup-python입니다.
+        uses: actions/setup-python@v4 # 공식 actions 라이브러리를 사용합니다.
         with:
-          python-version: '3.9'
+          python-version: '3.9' # 안정적인 3.9 버전을 사용합니다.
 
-      # 3. 필요한 라이브러리(requests, pytz)를 설치합니다.
+      # 3단계: 뉴스 봇 실행에 필요한 추가 도구(라이브러리)들을 설치합니다.
       - name: Install dependencies
         run: |
           pip install requests pytz
 
-      # 4. 봇 프로그램을 실행합니다. (이때 우리가 설정한 보안 키들을 환경변수로 넣어줍니다.)
+      # 4단계: 실제로 bot.py 파일을 실행하여 뉴스를 찾고 텔레그램으로 보냅니다.
       - name: Run bot
         env:
+          # 깃허브 시크릿에 저장한 보안 키들을 프로그램 내부로 전달합니다.
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python bot.py
 
-      # 5. 뉴스 발송 기록(sent_links.txt)을 저장소에 다시 업데이트합니다.
+      # 5단계: 오늘 보낸 뉴스 목록(sent_links.txt)을 저장소에 다시 업데이트합니다.
       - name: Sync and Push changes
         run: |
-          # 깃 허브 액션 봇의 이름과 이메일을 설정합니다.
+          # 깃허브 액션 봇 계정 정보를 설정합니다.
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 원격 저장소의 최신 상태를 가져와서 동기화합니다.
+          # 최신 상태를 동기화합니다.
           git fetch origin main
           git reset --mixed origin/main
           
-          # 기록 파일인 sent_links.txt의 변경사항을 추가합니다.
+          # 변경된 sent_links.txt 파일을 스테이징 영역에 추가합니다.
           git add sent_links.txt || true
           
-          # 변경사항이 있을 때만 커밋하고 서버에 올립니다(push).
+          # 만약 파일에 변화(새로운 뉴스 기록)가 있다면 커밋하고 서버에 올립니다.
           if ! git diff --quiet --staged; then
             git commit -m "Update news logs [skip ci]"
             git push origin main
