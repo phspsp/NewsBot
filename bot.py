@@ -70,7 +70,7 @@ if all_new_articles:
 
     # 4. 발송 기록 저장 (최신 100개)
     with open(DB_FILE, "w") as f:
-        f.write("\n".join(list(sent_links)[-100:]))
+        f.write("\n".join(list(sent_links)[-150:]))
     print(f"{len(all_new_articles)}개의 기사를 묶음 발송했습니다.")
 else:
     print("새로운 기사가 없습니다.")
