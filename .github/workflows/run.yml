@@ -26,11 +26,14 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python bot.py
-      
+        
       - name: Update sent_links
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add sent_links.txt  # 여기서 파일 이름을 sent_links.txt로 수정!
-          git commit -m "Update sent news links" || exit 0
+          git add sent_links.txt || exit 0
+          git add last_link.txt || exit 0
+          # 핵심: 먼저 pull을 해서 원격 저장소의 변경사항을 합칩니다.
+          git pull --rebase origin main
+          git commit -m "Update news link logs" || exit 0
           git push
