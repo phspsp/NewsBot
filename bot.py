@@ -63,7 +63,7 @@ if 0 <= now_korea.hour < 6: # 새벽 0시 ~ 아침 6시 사이라면
     exit() # 프로그램 종료
 
 # 2. 일주일 이내의 기사만 수집하기 위한 기준 시간 계산
-one_week_ago = now_korea - timedelta(days=7)
+one_week_ago = now_korea - timedelta(days=3)
 
 # 3. 키워드 및 중복 방지 DB(450개 저장용) 불러오기
 KEYWORDS = load_keywords()
