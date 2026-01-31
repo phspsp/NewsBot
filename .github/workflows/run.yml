@@ -2,14 +2,23 @@ name: News-Bot-Scheduler
 
 on:
   schedule:
-    - cron: '0 * * * *' # 매 정각마다 실행
-  workflow_dispatch:     # 수동 실행 버튼 생성
+    - cron: '0 * * * *'  # 매 정각마다 실행
+  workflow_dispatch:      # 수동 실행 버튼 활성화
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 여러 실행이 겹쳐서 충돌하는 것을 방지하기 위해 한 번에 하나씩만 실행
+    concurrency:
+      group: news-bot
+      cancel-in-progress: true
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          # 전체 히스토리를 가져와야 rebase가 가능합니다
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -26,14 +35,22 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python bot.py
-        
-      - name: Update sent_links
+
+      - name: Commit and Push changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add sent_links.txt || exit 0
-          git add last_link.txt || exit 0
-          # 핵심: 먼저 pull을 해서 원격 저장소의 변경사항을 합칩니다.
-          git pull --rebase origin main
-          git commit -m "Update news link logs" || exit 0
-          git push
+          
+          # 파일이 생성되었을 경우에만 추가 (없으면 무시)
+          git add sent_links.txt || true
+          git add last_link.txt || true
+          
+          # 변경사항이 있는지 확인 후 commit
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "변경사항이 없어 푸시를 건너뜁니다."
+          else
+            # 서버의 최신 변경사항을 먼저 가져와서 합칩니다 (충돌 방지 핵심)
+            git pull --rebase origin main
+            git commit -m "Update news logs [skip ci]"
+            git push origin main
+          fi
