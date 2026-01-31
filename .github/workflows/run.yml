@@ -2,23 +2,16 @@ name: News-Bot-Scheduler
 
 on:
   schedule:
-    - cron: '0 * * * *'  # 매 정각마다 실행
-  workflow_dispatch:      # 수동 실행 버튼 활성화
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    # 여러 실행이 겹쳐서 충돌하는 것을 방지하기 위해 한 번에 하나씩만 실행
-    concurrency:
-      group: news-bot
-      cancel-in-progress: true
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
-          # 전체 히스토리를 가져와야 rebase가 가능합니다
-          fetch-depth: 0
+          fetch-depth: 0  # 전체 기록을 가져와야 충돌 해결 가능
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -36,21 +29,18 @@ jobs:
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python bot.py
 
-      - name: Commit and Push changes
+      - name: Commit and Push
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 파일이 생성되었을 경우에만 추가 (없으면 무시)
-          git add sent_links.txt || true
-          git add last_link.txt || true
+          # 기존 파일들을 일단 모두 추가
+          git add .
           
-          # 변경사항이 있는지 확인 후 commit
-          if git diff --quiet && git diff --staged --quiet; then
-            echo "변경사항이 없어 푸시를 건너뜁니다."
-          else
-            # 서버의 최신 변경사항을 먼저 가져와서 합칩니다 (충돌 방지 핵심)
-            git pull --rebase origin main
-            git commit -m "Update news logs [skip ci]"
+          # 변경사항이 있을 때만 푸시
+          if ! git diff --quiet --staged; then
+            # 'last_link.txt' 관련 충돌을 피하기 위해 원격 서버 내용을 우선시하여 합침
+            git pull --rebase -X theirs origin main
+            git commit -m "Update news logs"
             git push origin main
           fi
