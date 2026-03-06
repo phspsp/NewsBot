@@ -22,7 +22,7 @@ def load_keywords():
 def get_news(keyword, sort_type):
     query = f'"{keyword}"'  # 정확한 검색을 위해 키워드 양옆에 큰따옴표를 붙입니다.
     # 각각 30개씩 유사도순(sim) 또는 최신순(date)으로 요청합니다.
-    url = f"https://openapi.naver.com/v1/search/news.json?query={query}&display=30&sort={sort_type}"
+    url = f"https://openapi.naver.com/v1/search/news.json?query={query}&display=15&sort={sort_type}"
     headers = {"X-Naver-Client-Id": NAVER_ID, "X-Naver-Client-Secret": NAVER_SECRET}
     try:
         res = requests.get(url, headers=headers)
